@@ -33,7 +33,7 @@ def explain_rules():
          - Send the image as a photo, not as a file.
          - The image you upload must be a square. If it's not, the bot will ask you to crop it and send a squared image.
          - The bot will only process the last image you upload. If you upload multiple images, the bot will only process the last one.
-         - The image must be a Lichess board. The bot will not process any other images.
+         - The image must be a brown-themed Lichess board. The bot will not process any other images.
          - The board must be clear and visible. The bot will not process blurry or unclear images.
          - The board must be complete. The bot will not process incomplete boards.
      That's it! Enjoy using the Lichess Bot!
@@ -57,6 +57,14 @@ def handle_callback_query(call):
     else:
         bot.send_message(chat_id, "Please upload the Lichess board image you want to be converted.")
 
+@bot.message_handler(content_types=['document'])
+def check_image_file(message):
+    file_extension = message.document.file_name.split('.')[-1].lower()
+    if file_extension not in ['jpg', 'jpeg', 'png']:
+        bot.send_message(message.chat.id, "The uploaded file is not a valid image. Please upload a valid image file.")
+        return
+    bot.send_message(message.chat.id, "Please make sure to upload the image as a photo, not as a file.")
+
 @bot.message_handler(content_types=['photo'])
 def check_image_size(message):
     photo = message.photo[-1]
@@ -64,7 +72,11 @@ def check_image_size(message):
     file_info = bot.get_file(file_id)
     file_path = file_info.file_path
     downloaded_file = bot.download_file(file_path)
-    image = Image.open(io.BytesIO(downloaded_file))
+    try:
+        image = Image.open(io.BytesIO(downloaded_file))
+    except IOError:
+        bot.send_message(message.chat.id, "The uploaded file is not a valid image. Please upload a valid image file.")
+        return
     with open('board.jpg', 'wb') as f:
         f.write(downloaded_file)
 
@@ -75,18 +87,28 @@ def check_image_size(message):
     
     board = detector.processImages('board.jpg')
     
-    detector.detectPiece(board[0], board[1])
+    boardMatrix = [[''] * 8 for _ in range(8)]
+    detector.detectPiece(board, boardMatrix)
+
+    print(boardMatrix)
+
+    for row in boardMatrix:
+        if '' in row:
+            bot.send_message(message.chat.id, "The board is either incomplete, unclear or not a brown-themed lichess board. Please upload an appropriate board.")
+            return
 
     user_selection = selected_option.get(message.chat.id)
     
     if user_selection == 'convert':
-        fen = detector.writeFEN()
+        fen = detector.writeFEN(boardMatrix)
         bot.send_message(message.chat.id, "Here is the FEN notation of the uploaded board: " + fen)
         bot.send_message(message.chat.id, "You can view the board in the following link.\nhttps://lichess.org/editor/" + fen)
+        selected_option[message.chat.id] = None
     elif user_selection == 'send':
-        cv2.imwrite('board.jpg', board[1])
+        cv2.imwrite('board.jpg', board)
         with open('board.jpg', 'rb') as f:
             bot.send_photo(message.chat.id, f)
+        selected_option[message.chat.id] = None
     else:
         send_options(message)
 
