@@ -9,25 +9,28 @@ pieceThreshold = {
     'B': 0.5, 'b': 0.95, 'K': 0.2, 'k': 0.5, 'N': 0.2, 'n': 0.8, 'P': 0.15, 'p': 0.65, 'Q': 0.4, 'q': 0.28, 'v': 0.22, 'R': 0.2, 'r': 0.8, '1': 0.01, '2':0.01
 }
 
-boardImages = {}
-path = "boards/7.jpg"
-baseName = os.path.basename(path)
-boardName = baseName.split('.')[0]
-fileName = baseName.split('.')[0]
-boardImage = cv2.imread(path)
-boardImages[fileName] = boardImage
-
+boardMatrix = [[''] * 8 for _ in range(8)]
 pieceImages = {}
 
-for path in PIECES_DIR:
-    baseName = os.path.basename(path)
-    fileName = baseName.split('.')[0][0]
-    pieceImage = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-    new_size = int(boardImage.shape[0] / 8)
-    pieceImage = cv2.resize(pieceImage, (new_size, new_size))
-    pieceImages[fileName] = (pieceImage, pieceThreshold[fileName])
+pieceSize = 0
 
-boardMatrix = [[''] * 8 for _ in range(8)]
+def processImages(filePath):
+    global pieceSize
+    baseName = os.path.basename(filePath)
+    boardName = fileName = baseName.split('.')[0]
+    boardImage = cv2.imread(filePath)
+    pieceSize = int(boardImage.shape[0] / 8)
+
+    for path in PIECES_DIR:
+        baseName = os.path.basename(path)
+        fileName = baseName.split('.')[0][0]
+        pieceImage = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        new_size = int(boardImage.shape[0] / 8)
+        pieceImage = cv2.resize(pieceImage, (new_size, new_size))
+        pieceImages[fileName] = (pieceImage, pieceThreshold[fileName])
+
+    return boardName, boardImage
+
 
 def detectPiece(boardName, boardImage):
     for piece in pieceImages:
@@ -54,7 +57,7 @@ def detectPiece(boardName, boardImage):
             textPosition = (top_left[0], top_left[1] + 20)
             cv2.putText(boardImage, pieceName, textPosition, cv2.FONT_HERSHEY_SIMPLEX, 0.7, textColor, 2, cv2.LINE_AA)
 
-            boardMatrix[math.ceil(top_left[1] / 90)][math.ceil(top_left[0] / 90)] = pieceName
+            boardMatrix[round(top_left[1] / pieceSize)][round(top_left[0] / pieceSize)] = pieceName
 
             h1 = top_left[1] - h // 2
             h1 = np.clip(h1, 0, result.shape[0])
@@ -71,10 +74,8 @@ def detectPiece(boardName, boardImage):
             result[h1:h2, w1:w2] = 1
             min_val, _, min_loc, _ = cv2.minMaxLoc(result)
 
-            cv2.imshow(boardName, boardImage)
 
-
-def writeFEN(boardMatrix):
+def writeFEN():
     fen = ''
     emptyCount = 0
 
@@ -101,10 +102,13 @@ def writeFEN(boardMatrix):
     return fen
 
 
-detectPiece(boardName, boardImage)
+if __name__ == "__main__":
+    path = "boards/1.jpg"
+    images = processImages(path)
+    detectPiece(images[0], images[1])
 
-fen = writeFEN(boardMatrix)
-print(fen)
+    fen = writeFEN()
+    print(fen)
 
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+    cv2.waitKey(0)    
+    cv2.destroyAllWindows()
